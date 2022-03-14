@@ -1,0 +1,481 @@
+---
+title: "Course Project Report - reasons that affect the severity of COVID 19"
+date: " "
+author: "Yulu Jin, 916163361, Group 8"
+output: html_document
+---
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(gridExtra)
+library(scales)
+library(lubridate)
+library(ggplot2)
+## read in the data
+covid <- read_csv("WHO-COVID-19-global-data.csv")
+vac <- read_csv("vaccination-data.csv")
+```
+
+
+## Introduction
+Currently, people all over the world have been affected by coronavirus disease 2019 (COVID-19), which is the fifth pandemic after the 1918 flu pandemic. However, different countries have quite different severity of COVID 19, which may caused by government policies, regions, vaccination circumstances, etc. Thus, it is of our interest to explore several main reasons that affect the severity of COVID 19, including the number of cases and deaths. 
+
+Specifically, in this project, we will explore the WHO COVID-19 data [1] to study the factors that affects the number of new cases, the number of death and the overall case-mortality rate. The factors we considered are WHO regions, time period, total vaccine doses administered per 100 population and persons vaccinated with at least one dose per 100 population. Among these factors,
+
+(1) WHO regions: represent different policies and different levels of medical care;
+
+(2) Time period: represent the seasonal effects of COVID 19 and also reflects the effect of different prevalent variants;
+
+(3) Total vaccine doses administered per 100 population & persons vaccinated with at least one dose per 100 population: represent the protection of vaccine on the virus. 
+
+#### Introduction of data
+In the considered "covid" dataset, there are 187467 observations of 8 variables. Each observation corresponds to a record reported to WHO.  Variables provide information about report date, country, region, new cases, cumulative cases, new deaths and cumulative deaths. The data collected in the "covid" dataset is from "2020-01-03" to the present. 236 countries are reported in the dataset. Those countries are divided into 6 WHO regions, including Africa, Americas, Eastern Mediterranean, Europe, South-East Asia and Western Pacific. 
+
+```{r include=FALSE}
+covid <- covid %>% 
+  filter(WHO_region != "Other") %>% 
+  mutate(WHO_region = fct_recode(WHO_region,"Eastern Mediterranean"="EMRO","Europe" = "EURO","Africa" = "AFRO","Western Pacific" = "WPRO","Americas"="AMRO","South-East Asia" = "SEARO"))
+range(covid$Date_reported)
+length(unique(covid$Country))
+unique(covid$WHO_region)
+```
+
+To explore the effects of vaccination rate and vaccine type on the COVID 19 data, we will use the vaccination data from WHO [2], which will be referred to as the "vac" dataset in the sequel. There are 228 observations in the dataset with 14 variables of each observation. Each observation corresponds to the vaccination information for a country, including the WHO region, date updated, total vaccinations, cumulative number of persons vaccinated with at least one dose, total vaccinations per 100 population, cumulative number of persons vaccinated with at least one dose per 100 population, cumulative number of persons fully vaccinated, cumulative number of persons fully vaccinated per 100 population and number of vaccine types used. As of 27 February 2022, a total of 10,585,766,316 vaccine doses have been administered.
+
+#### Questions of interest and motivations
+By analyzing these two datasets, we want to examine the association of the considered factors with the spread of COVID-19. There are several questions that will be figured out:
+
+(1) Whethere there is any differences in the COVID 19 cases across different WHO regions? If so, whether there is a particular region that has fewer COVID 19 cases than others? 
+
+(2) Whethere there is any differences in the COVID 19 cases across different time periods? If so, whether there is a particular time period that has more COVID 19 cases than others? 
+
+(3) Whether there is an interaction effects of WHO region and time period on the COVID 19 cases?
+
+(4) Vaccination is one of our most important ways to fight COVID 19, so what is the relationship between the case-mortality rate and vaccination rates?
+
+By answering these questions, the impact of different factors on the spread of COVID 19 could be better understood, which may help governments better develop policies against COVID 19 and also help people better protect themselves from the virus.
+
+#### Possible hypotheses
+For each question of interest, there are different hypotheses. In the following, we provide the possible hypotheses for each question correspondingly.
+
+(1) Since different WHO regions have different policies against COVID 19, different population density, different levels of medical technology, the possible hypothesis is that different WHO regions will have different number of COVID 19 cases per 100 population. 
+
+(2) It has been reported that the transmission of COVID-19 can be influenced by the variation of environmental factors due to the seasonal cycle [3,4]. Thus, the possible hypothesis is that different time periods will have different number of COVID 19 cases per 100 population. 
+
+(3) The possible hypothesis is that there is an interaction effects of WHO region and time period on the COVID 19 cases. 
+
+(4) It has been shown that a safe and effective vaccine could help to protect people in two distinct ways: direct protection, where high-risk groups are vaccinated to prevent disease, and indirect protection, where those in contact with high-risk individuals are vaccinated to reduce transmission. Therefore, a possible hypothesis is that there is an inverse relationship between vaccination rates and COVID 19 deaths.
+
+
+## Background
+In December 2019, a new respiratory illness began to spread throughout Wuhan, China. Despite the drastic, large-scale containment measures promptly implemented by the Chinese government, in a matter of a few weeks the disease had spread well outside China, reaching countries in all parts of the globe. The causative agent soon proved to be a new betacoronavirus related to the Middle East Respiratory Syndrome virus (MERS-CoV) and the Severe Acute Respiratory Syndrome virus (SARS-CoV). The novel coronavirus SARS-CoV-2 disease has been named “COVID-19” by the World Health Organization (WHO). In March 2020, WHO recognized the breakout as a global pandemic — the first since 2009. As of 5:38pm CET, 3 March 2022, there have been 438,968,263 confirmed cases of COVID-19, including 5,969,439 deaths, reported to WHO.
+
+The origin of COVID-19 has not yet been determined although preliminary investigations are suggestive of a zoonotic, possibly of bat, origin. Similarly to SARS-CoV and MERS-CoV, the novel virus is transmitted from person to person principally by respiratory droplets, causing such symptoms as fever, cough, and shortness of breath after a period believed to range from 2 to 14 days following infection, according to the Centers for Disease Control and Prevention (CDC). There is currently no safe and effective vaccine or antiviral for use against the pandemic in humans. Consequently, the control and mitigation efforts against the pandemic are focused on implementing non-pharmaceutical interventions (NPIs), such as social (physical)-distancing, community lockdown, contact tracing, quarantine of suspected cases, isolation of confirmed cases and the use of face masks in public.
+
+From the 31 December 2019 to the 21 March 2020, WHO collected the numbers of confirmed COVID-19 cases and deaths through official communications under the International Health Regulations. Since 22 March 2020, global data are compiled through WHO region-specific dashboards, and/or aggregate count data reported to WHO headquarters daily. Counts of new cases and deaths are calculated by subtracting previous cumulative total counts from the current count. These counts are updated incrementally throughout the day as more information becomes available. 
+
+
+## Descriptive analysis
+
+### "covid" dataset
+In this subsection, we explore the "covid" dataset and provide both univariate and multivariate descriptive statistics. Afterwards, we will preprocess the dataset. 
+
+#### Overview of the dataset
+In the "covid" dataset, there are 186676 observations of 8 variables. But the number of observations will change in real time since new records will be reported to WHO. The variables provide information about report date, country, region, new cases, cumulative cases, new deaths and cumulative deaths. The data collected in the "covid" dataset is from "2020-01-03" to the present. 236 countries are reported in the dataset. Those countries are divided into 6 WHO regions, including Africa, Americas, Eastern Mediterranean, Europe, South-East Asia and Western Pacific. 
+
+#### Discriptive statistics
+The range of new cases is $[-32952,1294289]$ and the range of new deaths is $[-60,8786]$. It might be strange to see negative numbers for new cases/deaths. The reason is that in the WHO COVID-19 dataset, new cases and deaths are calculated by subtracting the previous cumulative counts from the current counts. There may be some errors in the data collection process that cause the cumulative counts for the following day to be smaller than the cumulative counts for the previous day. The range of cumulative cases is $[0,78352602]$ and the range of cumulative deaths is $[0,945523]$, which indicates that there are countries with zero cases and zero deaths. This can be impossible when the COVID 19 has already spread out the world for more than two years and we will delete those records from the dataset. 
+
+To calculate the overall case-mortality rate, since there are countries with 0 count of cumulative case, we are unable to derive the ratio directly by $\frac{\text{Cumulative deaths}}{\text{Cumulative cases}}$. However, for the "covid_t" dataset, we can calculate the case-mortality rate by $\frac{\text{Cumulative deaths}}{\text{Cumulative cases}}, \text{Cumulative cases} \neq 0$. Then the range of the overall case-mortality rate is shown to be $[0,1]$, where 0 represents there are countries that have 0 count of cumulative death although the cumulative case count is greater than 0, and 1 occurs when all patients with positive results succumb to the disease. 
+
+We can also calculate the daily case-mortality rate in a similar manner but the meaning of that has to be discussed carefully. By filtering out the records with 0 count of new cases, there are 117427 observations in total. The daily case-mortality rate is calculated by $\frac{\text{New deaths}}{\text{New cases}}, \text{New cases} \neq 0$ and the range is $[0,9]$. The maximum value of the daily case-mortality rate can be larger than 1 because there might be patients who have been tested positive several days ago but died of the disease on a later day. In this sense, it might be meaningless to calculate the daily case-mortality rate. 
+
+```{r include=FALSE}
+## data exploration 
+range(covid$New_cases)
+range(covid$New_deaths)
+range(covid$Cumulative_cases)
+range(covid$Cumulative_deaths)
+covid.no=covid %>% filter(Cumulative_cases == 0) 
+length(unique(covid.no$Country))
+covid.exist<- covid %>% filter(Cumulative_cases > 0) 
+range(covid.exist$Cumulative_deaths/covid.exist$Cumulative_cases)
+covid.exist.new<- covid %>% filter(New_cases > 0,New_deaths>=0) 
+range(covid.exist.new$New_deaths/covid.exist.new$New_cases)
+```
+
+#### WHO regions
+Next, we explore the features of WHO regions, time period and vaccination status. The map below shows the number of new deaths around the world on "2022-02-17". It is shown that different countries have different numbers of new deaths, which is due to the different population sizes, different severity of the COVID 19, different vaccination rates, etc. In the map, it is easy to see that the United States stands out among all countries with the most new deaths.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+## Maps to show the world COVID 19 
+library(maps)
+world <- map_data("world");
+world$region <- replace(world$region, world$region == "USA", "United States of America")
+worldplot <- ggplot() +
+  geom_polygon(data = world, aes(x=long, y = lat, group = group)) 
+covid.today<- covid %>% 
+  filter(Date_reported == "2022-02-17") %>% 
+  mutate(region=Country)
+covid.today.world<- inner_join(world, covid.today, by = "region")
+fig.map  <- ggplot() +
+  geom_polygon(data = covid.today.world, aes(x=long, y = lat, group = group,fill=New_deaths)) + 
+  coord_fixed(1.3)
+fig.map
+```
+
+
+
+#### Time periods
+Moreover, even for the same country (US), the amounts of death and cases will be quite different in different time period. In the scatter plot, we have choose three different time periods and the length of each time period is 1 month. It is shown that there are more cases reported during the first month of 2022, which might be caused by the "Omicron" variant. However, for the number of deaths, there is not a big difference. The reason behind might be that the case-mortality rate of "Omicron" variant is low and there is a delay of death for the disease. 
+```{r echo=FALSE}
+#for the same country(US), the amounts of death and cases will be quite different in different time period.
+fig.scatter.3 <- covid %>% 
+  filter("2021-12-01"<Date_reported,Date_reported<"2022-01-01",Country_code=="US") %>% 
+  ggplot(aes(x=New_cases,y=New_deaths)) +
+  geom_point()+
+  geom_text(aes(label=Date_reported),hjust=0, vjust=0)
+fig.scatter.4 <- covid %>% 
+  filter("2022-01-01"<Date_reported,Date_reported<"2022-02-01",Country_code=="US") %>% 
+  ggplot(aes(x=New_cases,y=New_deaths)) +
+  geom_point()+
+  geom_text(aes(label=Date_reported),hjust=0, vjust=0)
+fig.scatter.5 <- covid %>% 
+  filter("2022-02-01"<Date_reported,Country_code=="US") %>% 
+  ggplot(aes(x=New_cases,y=New_deaths)) +
+  geom_point()+
+  geom_text(aes(label=Date_reported),hjust=0, vjust=0)
+gridExtra::grid.arrange(fig.scatter.3, fig.scatter.4,fig.scatter.5, nrow=1, ncol=3)
+```
+
+#### Data preprocessing
+For the future use, we generate a new dataset with at least 1 count of cumulative case and name it as the "covid_t" dataset. Moreover, all missing values are removed from the dataset. There are 152889 observations in the preprocessed dataset and we will use it to proceed our analysis. 
+
+
+
+### "vac" dataset
+Next, we analyse the features of vaccination. 
+
+#### Data preprocessing
+For the "vac" dataset, there are records for 228 countries. However, for the "covid" dataset, there are 238 countries included. In particular, there are 10 countries that are in the "covid" dataset but do not show in the "vac" dataset and there is one country "occupied Palestinian territory, including east Jerusalem" that has different name in the "vac" dataset. Besides, there is one country "Bonaire, Sint Eustatius and Saba" "Kosovo" in the "vac" dataset but the one related to that in the "covid" dataset is found to be "Kosovo[1]". For convenience, we will delete all records corresponding to those countries and only keep the records for the common countries. 
+
+#### Discriptive statistics
+Then we find that the range of update dates for the vaccination records is from "2021-04-14" to "2022-02-27", which is a long period. From the scatter plot on the left hand side, we observe that that the vaccination status of different countries is quite different, which may contribute to the COVID 19 severity. Besides, we find that there are several data points with "PERSONS_VACCINATED_1PLUS_DOSE_PER100" values greater than 100, which is invalid and we will change them to 100, as shown in the scatter plot on the right hand side.
+```{r include=FALSE}
+## data exploration of the vac dataset
+length(unique(vac$COUNTRY))
+Ctr_list_covid=unique(covid$Country)
+Ctr_list_cov=unique(vac$COUNTRY)
+setdiff(Ctr_list_covid,Ctr_list_cov)
+setdiff(Ctr_list_cov,Ctr_list_covid)
+Ctr_list_common=intersect(Ctr_list_covid,Ctr_list_cov)
+vac.c=vac %>% filter(COUNTRY %in% Ctr_list_common) 
+covid.c=covid.exist %>% filter(Country %in% Ctr_list_common) 
+range(vac.c$DATE_UPDATED)
+range(vac.c$TOTAL_VACCINATIONS_PER100)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# scatter plot of the dataset
+fig.scatter.7 <- vac.c %>% 
+  ggplot(aes(x=TOTAL_VACCINATIONS_PER100,y=PERSONS_VACCINATED_1PLUS_DOSE_PER100)) +
+  geom_point()+
+  geom_text(aes(label=COUNTRY),hjust=0, vjust=0)
+vac.c$PERSONS_VACCINATED_1PLUS_DOSE_PER100 <- replace(vac.c$PERSONS_VACCINATED_1PLUS_DOSE_PER100, vac.c$PERSONS_VACCINATED_1PLUS_DOSE_PER100 > 100, 100)
+fig.scatter.8 <- vac.c %>% 
+  ggplot(aes(x=TOTAL_VACCINATIONS_PER100,y=PERSONS_VACCINATED_1PLUS_DOSE_PER100)) +
+  geom_point()+
+  geom_text(aes(label=COUNTRY),hjust=0, vjust=0)
+gridExtra::grid.arrange(fig.scatter.7, fig.scatter.8, nrow=1, ncol=2)
+```
+
+Moreover, from the plot below, it is shown that two features "PERSONS_VACCINATED_1PLUS_DOSE_PER100" and "TOTAL_VACCINATIONS_PER100" are highly correlated and thus only one is needed in the regression model and we should carefully choose between them for our question of interest. 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Persons with one-plus dose vaccinated vs. total vaccinations per 100 plot
+plot(vac.c$PERSONS_VACCINATED_1PLUS_DOSE_PER100,vac.c$TOTAL_VACCINATIONS_PER100,pch = 15,main="Persons with one-plus dose vaccinated vs. total vaccinations per 100",xlab="Persons with one-plus dose vaccinated",ylab="Total vaccinations per 100")
+```
+
+
+## Inferential analysis
+In this section, we will answer each question of interest and provide the inferential analysis.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#drop na
+covid.c = drop_na(covid.c)
+```
+
+
+### Effects of WHO regions
+First, we explore whether countries in a particular region has fewer COVID 19 cases than other regions. As shown in the boxplot, different WHO regions have quite different distributional properties with respect to cumulative cases.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#boxplot of Cumulative cases v.s. WHO regions
+boxplot(Cumulative_cases ~ WHO_region, data = covid.c, xlab="WHO_region", ylab="Cumulative cases", cex.lab=1,main="Box plot of Cumulative cases")
+```
+
+#### Output Variable transformation
+Since the value of cumulative cases are very large, we consider whether there is a transformation needed for the output variable. Thus, we perform a box-cox transformation by using the boxcox() function from the MASS() library and find that a log transformation should be performed on the output variable. Thus, we will use the log of new/cumulative cases/deaths to fit the proposed models in the sequel. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Output Variable transformation check
+library(MASS)
+boxcox(Cumulative_cases ~ WHO_region, data = covid.c)
+covid.c$Cumulative_cases_log = log(covid.c$Cumulative_cases)
+covid.c$Cumulative_deaths_log = log(covid.c$Cumulative_deaths)
+covid.c$New_cases_log= log(covid.c$New_cases)
+covid.c$New_deaths_log=log(covid.c$New_deaths)
+```
+
+The boxplot of the log of Cumulative cases for different WHO regions is given below. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Box plot of the log of Cumulative cases v.s. WHO regions
+boxplot(Cumulative_cases_log ~ WHO_region, data = covid.c, xlab="WHO_region", ylab="Log of cumulative cases", cex.lab=1,main="Box plot of the log of Cumulative cases")
+```
+
+#### Model fitting
+To explore the effect of WHO regions, we select the records on "2022-03-03" and then propose a one way ANOVA model, $$Y_{i,j}=\mu+\alpha_i+\epsilon_{i,j},i=1,...,6,j=1,..,n_i$$
+where $\alpha_i$ satisfies that $\sum_{i=1}^6 n_i \alpha_i =0$ and $\epsilon_{i,j}$ are i.i.d. $N(0,\sigma^2)$. In this model, $\alpha_i$ represent the effect from the six WHO regions. The outcome $Y_{i,j}$ represents the cumulative cases for the jth country in the ith WHO region. The mean effect $\mu$ represents the mean cumulative cases. The errors $\epsilon_{i,j}$ capture any unexplained effects on the number of cumulative cases. Then we estimate the unknown parameters $\mu$ and $\alpha_i$ in the model. 
+
+Then the null hypothesis and alternative hypothesis are 
+
+$\mathcal{H}_0: \alpha_i=0, \forall i$, 
+
+$\mathcal{H}_0: \text{not all }\alpha_i=0$.
+
+
+From the summary of the proposed model, there is an association between WHO_region and the cumulative COVID-19 cases. The association may come from the different population size of different WHO regions, the different medical or vaccination circumstances for different WHO regions, etc.  
+
+```{r echo=FALSE, warning=FALSE}
+# fit the one way ANOVA model
+covid.day = covid.c %>% filter(Date_reported == "2022-03-03") 
+anova.fit.case.WHO<- aov(Cumulative_cases_log~WHO_region,data=covid.day)
+# Summary
+summary(anova.fit.case.WHO)
+```
+
+#### Simultaneous inference
+Then we apply Tukey-Kramer method to check whether there is a region where the mean COVID 19 cases is the lowest. From the table below, we find that "Africa" has the minimum cumulative-cases, which follows by "Eastern Mediterranean". From the result of Tukey-Kramer test, under significance level 0.05, the confidence interval of the difference "Eastern Mediterranean-Africa" covers 0 and indicates that there is no significant difference between the cumulative cases of "Eastern Mediterranean" and "Africa" regions. 
+
+```{r echo=FALSE}
+#aggregate the data
+aggregate(Cumulative_cases~WHO_region,covid.day,sum)
+#Tukey test
+alpha=0.05;
+TukeyHSD(aov(anova.fit.case.WHO))
+```
+
+
+### Effects of time period
+Next, we explore whether there is a time period that has more COVID 19 cases than others. A one way ANOVA model is proposed, $$Y_{i,j}=\mu+\alpha_i+\epsilon_{i,j},i=1,...,12,j=1,..,n_i$$
+where $\alpha_i$ satisfies that $\sum_{i=1}^{12} n_i \alpha_i =0$ and $\epsilon_{i,j}$ are i.i.d. $N(0,\sigma^2)$. In this model, $\alpha_i$ represent the effect from the 12 time periods. The outcome $Y_{i,j}$ represents the monthly cases for the jth country in the ith month. The mean effect $\mu$ represents the mean monthly cases. The errors $\epsilon_{i,j}$ capture any unexplained effects on the number of monthly cases. Then we estimate the unknown parameters $\mu$ and $\alpha_i$ in the model.
+
+Then the null hypothesis and alternative hypothesis are 
+
+$\mathcal{H}_0: \alpha_i=0, \forall i$, 
+
+$\mathcal{H}_0: \text{not all }\alpha_i=0$.
+
+#### Data selecting
+For this task, we first consider to use the data of year 2021, divided it into 12 groups in which each group corresponds to a month, and sum up the new cases/deaths of each month to obtain the monthly cases/deaths. The table of monthly cases is given below. 
+
+```{r echo=FALSE, message=FALSE}
+# select the data in 2021 and provide a column named "Month"
+covid.year = covid.c %>% filter(Date_reported < "2022-01-01", Date_reported >"2020-12-31") 
+covid.year$Month = substr(covid.year$Date_reported,6,7)
+covid.month = covid.year %>% group_by(Country, Month)  %>% summarise(Cases_monthly = sum(New_cases))
+aggregate(Cases_monthly~Month,covid.month,sum)
+```
+
+However, from the summary of the proposed model, there does not exist a strong association between month and the monthly COVID-19 cases, which is contradictory with our observations in the data exploration section. The reason for not seeing a strong association may be that COVID-19 has spread throughout 2021 and there are no specific variants that cause a high number of cases. As we all know, Omicron has caused a large number of cases in January 2022. 
+
+```{r echo=FALSE, message=FALSE}
+#fit the one way ANOVA model
+anova.fit.case<- aov(Cases_monthly~Month,data=covid.month)
+# Summary
+summary(anova.fit.case)
+```
+
+
+Thus, we consider to use the data from 2021-03 to 2022-02, divided it into 12 groups in which each group corresponds to a month, and sum up the new cases/deaths of each month to obtain the monthly cases/deaths. The table of monthly cases is given below, from which it is shown that the number of cases in month "01" and "02" are much higher than the number of monthly cases from other months in 2021. 
+
+```{r echo=FALSE, message=FALSE}
+# select the data from 2021-03 to 2022-02 and divided it into 12 groups
+covid.year = covid.c %>% filter(Date_reported < "2022-03-01", Date_reported >"2021-2-28") 
+covid.year$Month = substr(covid.year$Date_reported,6,7)
+covid.month = covid.year %>% group_by(Country, Month)  %>% summarise(Cases_monthly = sum(New_cases))
+covid.month = covid.month %>% filter(Cases_monthly > 0) 
+aggregate(Cases_monthly~Month,covid.month,sum)
+```
+
+
+#### Output Variable transformation
+However, we are curious about whether there is a transformation needed for the output variable since the value of monthly cases are very large. Thus, we perform a box-cox transformation by using the boxcox() function from the MASS() library and find that a log transformation should be performed on the output variable. Thus, we will use the log of monthly cases to fit the proposed models again. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#Output Variable transformation check
+library(MASS)
+boxcox(Cases_monthly~Month,data=covid.month)
+```
+
+#### Model fitting
+We fit the proposed model on the data from 2021-03 to 2022-02, from the summary of the proposed model, there is a quite strong association between month and the monthly COVID-19 cases, which is consistent with our observations and our practical knowledge. As we explained before, the biggest reason for the strong association might be the "Omicron" variant. 
+
+```{r echo=FALSE, message=FALSE}
+# fit the one way ANOVA model
+covid.month$Cases_monthly.log=log(covid.month$Cases_monthly)
+anova.fit.case.month<- aov(Cases_monthly.log~Month,data=covid.month)
+# Summary
+summary(anova.fit.case.month)
+```
+
+#### Effect of "Omicron" on COVID 19 deaths 
+Next, we are interested in the relationship between month and monthly deaths. The table below summarizes the monthly deaths, and it seems that the numbers are similar across months. From the summary of the proposed model, there does not exist a strong association between month and the monthly COVID-19 deaths, which is consistent with our practical knowledge as "Omicron" has less death rate than other variants.
+
+```{r echo=FALSE, message=FALSE}
+#Effect of "Omicron" on COVID 19 deaths 
+covid.month.death = covid.year %>% group_by(Country, Month)  %>% summarise(Deaths_monthly = sum(New_deaths))
+covid.month.death = covid.month.death %>% filter(Deaths_monthly >0)
+aggregate(Deaths_monthly~Month,covid.month.death,sum)
+covid.month.death$Deaths_monthly.log=log(covid.month.death$Deaths_monthly)
+anova.fit.death.month<- aov(Deaths_monthly~Month,data=covid.month.death)
+# Summary
+summary(anova.fit.death.month)
+```
+
+#### Simultaneous inference
+Moreover, we apply Tukey-Kramer method to check whether there is a month where the mean monthly COVID 19 cases is the lowest and whether there is a month where the mean monthly COVID 19 cases is the highest. From the analysis results, there does not exist a month that has the most/least COVID 19 cases. 
+
+```{r include=FALSE}
+#Tukey test
+alpha=0.05;
+TukeyHSD(aov(anova.fit.case.month))
+```
+
+
+### Interaction effects of WHO region and time period 
+Thirdly, we investigate the interaction effects of WHO region and time period on the COVID 19 cases. For this task, we also use the data from 2021-03 to 2022-02, divided it into 12 groups when each group corresponds to a month. 
+
+We then propose a two way ANOVA model, $$Y_{i,j,k}=\mu+\alpha_i+\beta_j+(\alpha \beta)_{i,j}+\epsilon_{i,j,k},i=1,...,6,j=1,...,12,k=1,...,n_{ij},$$
+where $\alpha_i$ satisfies that $\sum_{i=1}^6 \alpha_i =0$, $\beta_j$ satisfies that $\sum_{j=1}^{12} \beta_j = 0, \sum_{i=1}^6 (\alpha \beta)_{i,j}=0, \forall j$, $\sum_{j=1}^{12} (\alpha \beta)_{i,j}=0, \forall i$ and $\epsilon_{i,j,k}$ are i.i.d. $N(0,\sigma^2)$. In this model, $\alpha_i$ represent the effect from the six WHO regions, $\beta_j$ represent the effect from the 12 time periods. The outcome $Y_{i,j,k}$ represents the monthly cases for the kth country in jth month from the ith WHO region. The mean effect $\mu$ represents the mean monthly cases. $\epsilon_{i,j,k}$ capture any unexplained effects on the number of monthly cases. 
+
+Then the null hypothesis and alternative hypothesis are 
+
+$\mathcal{H}_0: (\alpha \beta)_{ij}=0, \forall i,j$, 
+
+$\mathcal{H}_0: \text{not all }(\alpha \beta)_{ij}=0$.
+
+#### Main effect plots for two factors and interaction plot
+Here are the main effect plots for WHO regions and months respectively. From the interaction plot, there seems to be some interaction effect. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+covid.month$WHO_region <- covid.year$WHO_region[match(covid.month$Country,covid.year$Country)]
+# Exploratory analysis
+library(gplots)
+covid.month$WHO_region=as.factor(covid.month$WHO_region)
+covid.month$Month=as.factor(covid.month$Month)
+options(repr.plot.width=12, repr.plot.height=12)
+par(mfrow=c(2,2))
+# Main effect plots
+plotmeans(Cases_monthly.log~WHO_region,data=covid.month,xlab="WHO_region 1",ylab="Log of monthly cases",
+          main="Main  effect, WHO_region",cex.lab=1.5) 
+# Main effect plot for ingredient 2
+plotmeans(Cases_monthly.log~Month,data=covid.month,xlab="Ingredient 2",ylab="Log of monthly cases",
+          main="Main  effect, Month",cex.lab=1.5) 
+#Interaction plot
+interaction.plot( covid.month$Month,covid.month$WHO_region,covid.month$Cases_monthly.log,cex.lab=1.5,ylab="Log of monthly case",xlab='Month')
+par(mfrow=c(1,1))
+```
+
+#### Model fitting
+From the summary of in the ANOVA table, we conclude that the interaction term can be included in the model. 
+
+```{r echo=FALSE}
+# fit the two way ANOVA models
+anova.fit.case.two.red<- aov(Cases_monthly.log~WHO_region+Month,data=covid.month)
+anova.fit.case.two.full<- aov(Cases_monthly.log~WHO_region+Month+WHO_region:Month,data=covid.month)
+# Summary
+anova(anova.fit.case.two.red,anova.fit.case.two.full)
+```
+
+
+### Vaccination rate and case-mortality rate 
+Moreover, we are also interested in the relationship between vaccination rate and the case-mortality rate. The proposed model is the linear regression model and the data is selected to be on "2022-03-01". Then we use different linear regression models to explain the case-mortality rate.
+```{r echo=FALSE, warning=FALSE}
+# construct the dataframe used to check the relationship between vaccination rate and the case-mortality
+vac.new = vac.c %>% filter(DATE_UPDATED > "2021-12-31")
+Ctr_list=unique(vac.new$COUNTRY)
+covid.common=covid.c %>% filter(Country %in% Ctr_list) 
+covid.new = covid.common %>% filter(Date_reported == "2022-03-01")
+covid.new$Vac <- vac.new$TOTAL_VACCINATIONS_PER100[match(covid.new$Country,vac.new$COUNTRY)]
+covid.new$Vac_full <- vac.new$PERSONS_FULLY_VACCINATED_PER100[match(covid.new$Country,vac.new$COUNTRY)]
+covid.new <- covid.new  %>% filter(Cumulative_deaths>0)
+covid.new$ratio <- covid.new$Cumulative_deaths/covid.new$Cumulative_cases
+covid.new = drop_na(covid.new)
+```
+
+#### Model fitting
+We fit a multivariant linear model on "PERSONS_FULLY_VACCINATED_PER100" and WHO region. 
+
+The reduced model is "ratio ~ Vac_full+WHO_region". 
+
+The full model is "ratio ~ Vac_full+WHO_region+Vac_full:WHO_region".
+
+For these two models, the full model performs better than the reduced model since the adjusted R-squared value for the reduced model is 0.2314 and is 0.3318  for the full model. Moreover, from the effect plots of "PERSONS_FULLY_VACCINATED_PER100", we can also see that as the vaccination rate becomes larger, the case-mortality rate will be smaller and it is also observed that the full model fits the data better than the reduced model.  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(jtools)
+library(ggstance)
+# two linear models
+fit_lm1 = lm(ratio ~ Vac_full+WHO_region, data=covid.new)
+#summary(fit_lm1)
+fit_lm2 = lm(ratio ~ Vac_full+WHO_region+Vac_full:WHO_region, data=covid.new)
+#summary(fit_lm2)
+# effect_plot of two linear models 
+effect_plot(fit_lm1, pred = Vac_full, interval = TRUE, plot.points = TRUE)
+effect_plot(fit_lm2, pred = Vac_full, interval = TRUE, plot.points = TRUE)
+```
+
+
+
+## Sensitivity analysis
+Since we have used two one-way ANOVA models and a two-way ANOVA model, all required assumptions for two-way ANOVA have to be satisfied. 
+
+Since there are three models proposed, we will explore the normality and constant variance assumptions for each model. From all the residuals vs. fitted value plots, the expected value of the residuals is approximately 0, and the variance is approximately constant, which indicates that the assumption of constant variance is met. For QQ plots, the standardized residuals are approximately equal to the theoretical residuals and the assumption of normality is satisfied. Therefore, we conclude that there is no obvious violations of normal distributions of error terms. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# residuals vs. fitted value plots, QQ plots
+par(mfrow=c(2,2))
+plot(anova.fit.case.WHO, cex.lab=1.2, which=1:2)
+par(mfrow=c(2,2))
+plot(anova.fit.case.month, cex.lab=1.2, which=1:2)
+par(mfrow=c(2,2))
+plot(anova.fit.case.two.full, cex.lab=1.2, which=1:2)
+```
+
+For the proposed linear model, from the residual plot, we notice that the residuals are close to 0. For the QQ plot, the standardized residuals are approximately equal to the theoretical residuals and the assumption of normality is satisfied. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+par(mfrow=c(2,2))
+plot(fit_lm2$residuals,cex.lab=1)
+plot(fit_lm2, cex.lab=2,which=2,xlim=c(-1.8,1.8))
+```
+
+## Conclusion
+In this project, I have explored several reasons that affect the severity of COVID 19, including the COVID 19 cases and deaths. The considered factors are WHO regions, time period, total vaccine doses administered per 100 population and persons fully vaccinated per 100 population. From the experimental results, we have concluded that there is a strong association between WHO regions and COVID 19 cases. However, there is no WHO region that has the highest/lowest COVID 19 cases. As for the time period, there is a strong association between months and COVID 19 cases based on the data collected from "2021-03" to "2022-02", which indicates that the "Omicron" variant has strongly increased the number of COVID 19 cases but does not increase the number of COVID 19 deaths a lot. Moreover, we find that the interaction effect of months and WHO regions can be included in the two-way ANOVA model to better fit the model on the dataset. As for the vaccination rate, we conclude that as the vaccination rate becomes larger, the case-mortality rate will be smaller. The findings in this project suggest that the prevalent variant plays an important role in affecting the number of COVID 19 cases. However, there is not a big increase in the number of deaths. Therefore, it is shown that "Omicron" had a lower lethality rate than other variants, which might serve as evidence of the vaccine's effectiveness. Besides, as there is an inverse relationship beteen vaccination rate and the case-mortality rate, it also justifies that vaccine is a useful tool to fight against the COVID 19. 
+
+## Reference
+[1] https://covid19.who.int/WHO-COVID-19-global-data.csv
+
+[2] https://covid19.who.int/who-data/vaccination-data.csv
+
+[3] Byun, Woo Seok, et al. "Is coronavirus disease (COVID-19) seasonal? A critical analysis of empirical and epidemiological studies at global and local scales." Environmental Research 196 (2021): 110972.
+
+[4] Rayan, Rehab A. "Seasonal variation and COVID-19 infection pattern: A gap from evidence to reality." Current opinion in environmental science & health 20 (2021): 100238.
+
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
+
+
+
+
